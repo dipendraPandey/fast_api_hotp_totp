@@ -1,0 +1,11 @@
+[project]
+name = "fast-api-totp-hotp-test"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=44.0.0",
+    "fastapi[standard]>=0.115.6",
+    "python-jose>=3.3.0",
+]
