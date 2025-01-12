@@ -36,7 +36,7 @@ async def generate_totp(user: UserRegistration):
     time_value  =  time.time()
     user_secrets[user.user_id]['counter']= time_value
     totp_builder = TOTPBuilder(key=secret_key, time_value=time_value)
-    totp = totp_builder.generate()
+    totp, time_value = totp_builder.generate()
     return OTPResponse(otp=totp)
 
 @app.post("/generate/hotp", response_model=OTPResponse)
@@ -67,8 +67,6 @@ async def verify_totp(verification: OTPVerification):
 @app.post("/verify/hotp", response_model=VerificationResponse)
 async def verify_hotp(verification: OTPVerification):
     """Verify a HOTP."""
-    if verification.counter is None:
-        raise HTTPException(status_code=400, detail="Counter is required for HOTP verification")
 
     if verification.user_id not in user_secrets:
         raise HTTPException(status_code=404, detail="User not found")
@@ -76,5 +74,5 @@ async def verify_hotp(verification: OTPVerification):
     secret_key = user_value_dict["secret_key"]
     counter = user_value_dict ["counter"]
     hotp_builder = HOTPBuilder(key=secret_key, counter=counter)
-    is_valid = hotp_builder.verifier(hotp=verification.otp)
+    is_valid = hotp_builder.verify(hotp=verification.otp)
     return VerificationResponse(is_valid=is_valid)
