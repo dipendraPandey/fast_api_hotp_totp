@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 from fastapi.security import HTTPBearer
 from app.models import *
-from app.hazmat_helpers import BuildHOTP, KeyBuilder, BuildTOTP
+from app.hazmat_helpers import TOTPBuilder, KeyBuilder, HOTPBuilder
 
 
 app = FastAPI(title="Authentication API")
@@ -35,7 +35,7 @@ async def generate_totp(user: UserRegistration):
     secret_key = user_secrets[user.user_id]["secret_key"]
     time_value  =  time.time()
     user_secrets[user.user_id]['counter']= time_value
-    totp_builder = BuildTOTP(key=secret_key, time_value=time_value)
+    totp_builder = TOTPBuilder(key=secret_key, time_value=time_value)
     totp = totp_builder.generate()
     return OTPResponse(otp=totp)
 
@@ -46,7 +46,7 @@ async def generate_hotp(user: UserRegistration):
         raise HTTPException(status_code=404, detail="User not found")
 
     secret_key = user_secrets[user.user_id]["secret_key"]
-    hotp_builder = BuildHOTP(key=secret_key)
+    hotp_builder = HOTPBuilder(key=secret_key)
     hotp, counter = hotp_builder.generate()
     user_secrets[user.user_id]['counter']= counter
 
@@ -60,7 +60,7 @@ async def verify_totp(verification: OTPVerification):
 
     secret_key = user_secrets[verification.user_id]["secret_key"]
     time_value = user_secrets[verification.user_id]["counter"]
-    totp_builder = BuildTOTP(key=secret_key, time_value=time_value)
+    totp_builder = TOTPBuilder(key=secret_key, time_value=time_value)
     is_valid = totp_builder.verify(otp=verification.otp)
     return VerificationResponse(is_valid=is_valid)
 
@@ -75,6 +75,6 @@ async def verify_hotp(verification: OTPVerification):
     user_value_dict = user_secrets[verification.user_id]
     secret_key = user_value_dict["secret_key"]
     counter = user_value_dict ["counter"]
-    hotp_builder = BuildHOTP(key=secret_key, counter=counter)
+    hotp_builder = HOTPBuilder(key=secret_key, counter=counter)
     is_valid = hotp_builder.verifier(hotp=verification.otp)
     return VerificationResponse(is_valid=is_valid)
