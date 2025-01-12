@@ -1,3 +1,4 @@
+""" Opt builder classes."""
 """Cryptography Hazardous Materials helper functions."""
 import random
 from string import ascii_uppercase
@@ -9,6 +10,7 @@ from typing import Any
 import time
 from cryptography.hazmat.primitives.twofactor import InvalidToken
 
+
 def generate_random_character()->tuple[str, int]:
     character = random.choice(ascii_uppercase)
     return character, ord(character)
@@ -17,34 +19,34 @@ def get_hotp(key:bytes, length:int=6)->HOTP:
     try:
         return HOTP(key=key, length=length, algorithm=hashes.SHA512())
     except ValueError  as error:
-        # logger.error(error)
-        raise("Invalid length or Invalid key.")
+        # logger.error(str(error))
+        raise error
     except TypeError as error:
-        # logger.error(error)
-        raise("Invalid Algorithm.")
+        # logger.error(str(error))
+        raise ValueError("Invalid Algorithm.")
 
 
 def get_totp(key:bytes, length:int=6, time_step:int=30)->TOTP:
     try:
         return TOTP(key=key, length=length, algorithm=hashes.SHA512(), time_step=time_step)
     except ValueError  as error:
-        # logger.error(error)
-        raise("Invalid length or Invalid key.")
+        # logger.error(str(error))
+        raise ValueError("Invalid length or Invalid key.")
     except TypeError as error:
-        # logger.error(error)
-        raise("Invalid Algorithm.")
-    
+        # logger.error(str(error))
+        raise ValueError("Invalid Algorithm.")
+
 
 
 def verify_totp(totp:TOTP, value:bytes, time_value:int):
     return totp.verify(value, time_value)
 
-class BuildHOTP:
+class HOTPBuilder:
     def __init__(self, key:bytes, counter:int=0, length:int=6):
         self.counter = counter
         self.hotp = get_hotp(key=key, length=length)
         self.key_builder = KeyBuilder()
-    
+
     def generate_counter(self):
         character, counter = generate_random_character()
         self.counter = counter
@@ -57,7 +59,7 @@ class BuildHOTP:
         return self.key
 
 
-    def generate(self)->tuple[bytes, int]:
+    def generate(self)->tuple[str, int]:
         self.generate_counter()
         otp= self.hotp.generate(self.counter)
         hotp = self.character + otp.decode('utf-8')
@@ -73,28 +75,29 @@ class BuildHOTP:
             raise error
 
 
-class BuildTOTP:
-    def __init__(self, key:bytes, length:int=6, time_step:int=30, time_value:time=time.time(),):
+class TOTPBuilder:
+    def __init__(self, key:bytes, length:int=6, time_step:int=30, time_value:float=time.time(),):
         self.key=key
         self.time_value = time_value
         self.totp = get_totp(key=key, length=length, time_step=time_step)
         self.key_builder = KeyBuilder()
 
-    def generate(self)->str:
+    def generate(self)->tuple[str, float]:
         otp_value =  self.totp.generate(self.time_value)
         return otp_value.decode('utf-8'), self.time_value
-    
+
     def get_key(self):
         if not self.key:
             self.key = self.key_builder.get_key()
         return self.key
 
     def verify(self, otp:str)-> bool:
-        otp = bytes(otp, 'utf-8')
+        otp_bytes = bytes(otp, 'utf-8')
         try:
-            self.totp.verify(value=otp, time_value=self.time_value)
+            self.totp.verify(totp=otp_bytes, time=int(self.time_value))
             return True
         except InvalidToken as e:
+            # logger.error(str(e))
             return False
 
 
