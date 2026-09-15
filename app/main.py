@@ -7,10 +7,52 @@ from app.models import *
 from app.hazmat_helpers import TOTPBuilder, KeyBuilder, HOTPBuilder
 
 
-app = FastAPI(title="Authentication API")
+from contextlib import asynccontextmanager
+import httpx
+import os
+
+http_client = None
+opa_url = os.environ.get("OPA_URL", "http://localhost:8181/v1/data/app/rbac/allow")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(timeout=5.0)
+    yield
+    if http_client:
+        await http_client.aclose()
+
+app = FastAPI(title="Authentication API", lifespan=lifespan)
 security = HTTPBearer()
 
 user_secrets: Dict[str, Dict[str, str]] = {}
+
+def verify_permission(action: str, resource_type: str):
+    async def dependency(user_id: str):
+        global http_client
+        # We need the user to be passed. Assuming it comes from a query parameter for the mock,
+        # or header in a real scenario.
+        if not http_client:
+            raise HTTPException(status_code=503, detail="Service Unavailable: HTTP client not initialized")
+
+        payload = {
+            "input": {
+                "user": user_id,
+                "action": action,
+                "resource": resource_type
+            }
+        }
+        try:
+            response = await http_client.post(opa_url, json=payload, timeout=2.0)
+            response.raise_for_status()
+            result = response.json()
+            if not result.get("result", False):
+                raise HTTPException(status_code=403, detail="Forbidden")
+        except httpx.RequestError as e:
+            # Cannot reach OPA
+            raise HTTPException(status_code=503, detail="Service Unavailable: Authorization service unreachable")
+        return user_id
+    return dependency
 
 @app.post("/register", response_model=Dict[str, str])
 async def register_user(user: UserRegistration):
@@ -76,3 +118,14 @@ async def verify_hotp(verification: OTPVerification):
     hotp_builder = HOTPBuilder(key=secret_key, counter=counter)
     is_valid = hotp_builder.verify(hotp=verification.otp)
     return VerificationResponse(is_valid=is_valid)
+
+
+from fastapi import Depends
+
+@app.get("/finance/{report_id}")
+async def get_finance_report(
+    report_id: str,
+    user_id: str = Depends(verify_permission(action="read", resource_type="finance"))
+):
+    """A mock protected endpoint requiring 'read' permission on 'finance' resource."""
+    return {"report_id": report_id, "data": "Confidential financial data", "accessed_by": user_id}

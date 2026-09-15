@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  fastapi-app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPA_URL=http://opal-client:8181/v1/data/app/rbac/allow
+    depends_on:
+      - opal-client
+    networks:
+      - opal-network
+
+  opal-server:
+    image: permitio/opal-server:latest
+    environment:
+      - OPAL_POLICY_REPO_URL=file:///policy-repo
+      - OPAL_BROADCAST_URI=redis://redis:6379/0
+    volumes:
+      - ./policy-repo:/policy-repo
+    # Override command to ensure the repo is a git repo before starting
+    command: >
+      sh -c "
+      cd /policy-repo &&
+      if [ ! -d .git ]; then
+        git config --global init.defaultBranch main &&
+        git config --global user.email 'test@example.com' &&
+        git config --global user.name 'Test' &&
+        git init &&
+        git add . &&
+        git commit -m 'initial commit';
+      fi &&
+      cd / &&
+      ./scripts/start.sh
+      "
+    ports:
+      - "7002:7002"
+    depends_on:
+      - redis
+    networks:
+      - opal-network
+
+  opal-client:
+    image: permitio/opal-client:latest
+    environment:
+      - OPAL_SERVER_URL=http://opal-server:7002
+      - OPAL_BROADCAST_URI=redis://redis:6379/0
+    ports:
+      - "8181:8181"
+    depends_on:
+      - opal-server
+    networks:
+      - opal-network
+
+  redis:
+    image: redis:alpine
+    networks:
+      - opal-network
+
+networks:
+  opal-network:
