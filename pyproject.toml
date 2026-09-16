@@ -1,7 +1,7 @@
 [project]
 name = "fast-api-totp-hotp-test"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI application refactored with Inversion of Control, CQRS, Message Bus, Repository and Unit of Work patterns"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,4 +9,10 @@ dependencies = [
     "fastapi[standard]>=0.115.6",
     "httpx>=0.28.1",
     "python-jose>=3.3.0",
+    "passlib>=1.7.4",
+    "bcrypt<4.0.0",
+    "di>=0.79.2",
+    "hypothesis>=6.168.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
 ]
