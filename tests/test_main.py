@@ -1,7 +1,14 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlmodel import SQLModel
 from app.main import app
+from app.service_layer.unit_of_work import create_db_and_tables, engine
+
+@pytest_asyncio.fixture(autouse=True)
+def setup_db():
+    SQLModel.metadata.drop_all(engine)
+    create_db_and_tables()
 
 @pytest_asyncio.fixture
 async def async_client():

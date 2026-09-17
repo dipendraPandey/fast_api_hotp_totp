@@ -3,22 +3,22 @@ import di
 from di.dependent import Dependent
 from di.executors import AsyncExecutor
 
-from app.service_layer.unit_of_work import AbstractUnitOfWork, InMemoryUnitOfWork
+from app.service_layer.unit_of_work import AbstractUnitOfWork, SqlModelUnitOfWork
 from app.service_layer.messagebus import MessageBus
 
 container = di.Container()
 
 def get_uow() -> AbstractUnitOfWork:
-    return InMemoryUnitOfWork()
+    return SqlModelUnitOfWork()
 
 def get_message_bus(uow: AbstractUnitOfWork = None) -> MessageBus:
     if uow is None:
         uow = get_uow()
     return MessageBus(uow=uow)
 
-# Bind abstract UoW to concrete InMemoryUnitOfWork for container DI resolution
+# Bind abstract UoW to concrete SqlModelUnitOfWork for container DI resolution
 container.bind(
-    di.bind_by_type(Dependent(InMemoryUnitOfWork, scope="request"), AbstractUnitOfWork)
+    di.bind_by_type(Dependent(SqlModelUnitOfWork, scope="request"), AbstractUnitOfWork)
 )
 
 executor = AsyncExecutor()

@@ -21,7 +21,7 @@ from app.service_layer import handlers
 from app.service_layer.messagebus import MessageBus
 from app.container import resolve_message_bus
 from app.jwt_helpers import verify_jwt_token
-from app.service_layer.unit_of_work import InMemoryUnitOfWork
+from app.service_layer.unit_of_work import SqlModelUnitOfWork, create_db_and_tables
 
 http_client = None
 opa_url = os.environ.get("OPA_URL", "http://localhost:8181/v1/data/app/rbac/allow")
@@ -29,6 +29,7 @@ opa_url = os.environ.get("OPA_URL", "http://localhost:8181/v1/data/app/rbac/allo
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global http_client
+    create_db_and_tables()
     http_client = httpx.AsyncClient(timeout=5.0)
     yield
     if http_client:
@@ -73,7 +74,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    uow = InMemoryUnitOfWork()
+    uow = SqlModelUnitOfWork()
     with uow:
         user = uow.users.get(user_id)
         if not user:
