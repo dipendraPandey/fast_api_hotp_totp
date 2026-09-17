@@ -15,4 +15,5 @@ dependencies = [
     "hypothesis>=6.168.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "sqlmodel>=0.0.14",
 ]

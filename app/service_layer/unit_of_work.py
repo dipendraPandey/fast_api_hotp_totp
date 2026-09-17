@@ -1,8 +1,23 @@
 """Unit of Work implementation."""
 import abc
+import os
 from typing import Generator, List
-from app.adapters.repository import AbstractUserRepository, InMemoryUserRepository
+from sqlmodel import SQLModel, Session, create_engine
+from app.adapters.repository import (
+    AbstractUserRepository,
+    InMemoryUserRepository,
+    SqlModelUserRepository,
+)
 from app.domain.events import Event
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./sqlite.db")
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
 
 class AbstractUnitOfWork(abc.ABC):
     users: AbstractUserRepository
@@ -49,3 +64,25 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
 
     def rollback(self):
         pass
+
+
+class SqlModelUnitOfWork(AbstractUnitOfWork):
+    def __init__(self, session_factory=None):
+        self.session_factory = session_factory or (lambda: Session(engine))
+
+    def __enter__(self) -> "SqlModelUnitOfWork":
+        self.session: Session = self.session_factory()
+        self.users = SqlModelUserRepository(self.session)
+        return super().__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        super().__exit__(exc_type, exc_val, exc_tb)
+        self.session.close()
+
+    def _commit(self):
+        for user in self.users.seen:
+            self.users.add(user)
+        self.session.commit()
+
+    def rollback(self):
+        self.session.rollback()
