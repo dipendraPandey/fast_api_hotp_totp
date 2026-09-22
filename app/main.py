@@ -60,7 +60,7 @@ def verify_permission(action: str, resource_type: str):
             result = response.json()
             if not result.get("result", False):
                 raise HTTPException(status_code=403, detail="Forbidden")
-        except httpx.RequestError:
+        except httpx.HTTPError:
             raise HTTPException(status_code=503, detail="Service Unavailable: Authorization service unreachable")
         return user_id
     return dependency
