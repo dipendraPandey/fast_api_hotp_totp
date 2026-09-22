@@ -75,3 +75,45 @@ async def test_protected_route_invalid_token(async_client):
     headers = {"Authorization": "Bearer invalid_token_here"}
     protected_resp = await async_client.get("/protected", headers=headers)
     assert protected_resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_verify_hotp_success(async_client):
+    user_id = "test_hotp_user"
+    password = "securepassword"
+
+    # Register user
+    reg_resp = await async_client.post("/register", json={"user_id": user_id, "password": password})
+    assert reg_resp.status_code == 200
+
+    # Generate HOTP
+    gen_resp = await async_client.post("/generate/hotp", json={"user_id": user_id})
+    assert gen_resp.status_code == 200
+    otp = gen_resp.json()["otp"]
+
+    # Verify valid HOTP
+    verify_resp = await async_client.post("/verify/hotp", json={"user_id": user_id, "otp": otp})
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+
+@pytest.mark.asyncio
+async def test_verify_hotp_invalid_otp(async_client):
+    user_id = "test_hotp_invalid_user"
+    password = "securepassword"
+
+    # Register user
+    reg_resp = await async_client.post("/register", json={"user_id": user_id, "password": password})
+    assert reg_resp.status_code == 200
+
+    # Generate HOTP to advance counter/initialize secret
+    await async_client.post("/generate/hotp", json={"user_id": user_id})
+
+    # Verify invalid HOTP
+    verify_resp = await async_client.post("/verify/hotp", json={"user_id": user_id, "otp": "000000"})
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is False
+
+@pytest.mark.asyncio
+async def test_verify_hotp_user_not_found(async_client):
+    verify_resp = await async_client.post("/verify/hotp", json={"user_id": "nonexistent_hotp_user", "otp": "123456"})
+    assert verify_resp.status_code == 404
+    assert verify_resp.json()["detail"] == "User not found"
