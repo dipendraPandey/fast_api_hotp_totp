@@ -19,10 +19,8 @@ def get_hotp(key:bytes, length:int=6)->HOTP:
     try:
         return HOTP(key=key, length=length, algorithm=hashes.SHA512())
     except ValueError  as error:
-        # logger.error(str(error))
         raise error
     except TypeError as error:
-        # logger.error(str(error))
         raise ValueError("Invalid Algorithm.")
 
 
@@ -30,10 +28,8 @@ def get_totp(key:bytes, length:int=6, time_step:int=30)->TOTP:
     try:
         return TOTP(key=key, length=length, algorithm=hashes.SHA512(), time_step=time_step)
     except ValueError  as error:
-        # logger.error(str(error))
         raise ValueError("Invalid length or Invalid key.")
     except TypeError as error:
-        # logger.error(str(error))
         raise ValueError("Invalid Algorithm.")
 
 
@@ -97,7 +93,6 @@ class TOTPBuilder:
             self.totp.verify(totp=otp_bytes, time=int(self.time_value))
             return True
         except InvalidToken as e:
-            # logger.error(str(e))
             return False
 
 
