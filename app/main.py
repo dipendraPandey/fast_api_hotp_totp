@@ -54,8 +54,13 @@ def verify_permission(action: str, resource_type: str):
                 "resource": resource_type
             }
         }
+        headers = {}
+        opa_token = os.environ.get("OPA_TOKEN") or os.environ.get("OPA_AUTH_TOKEN") or os.environ.get("OPA_BEARER_TOKEN")
+        if opa_token:
+            headers["Authorization"] = f"Bearer {opa_token}"
+
         try:
-            response = await http_client.post(opa_url, json=payload, timeout=2.0)
+            response = await http_client.post(opa_url, json=payload, headers=headers, timeout=2.0)
             response.raise_for_status()
             result = response.json()
             if not result.get("result", False):

@@ -1,7 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock
+import httpx
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlmodel import SQLModel
+import app.main as main_module
 from app.main import app
 from app.service_layer.unit_of_work import create_db_and_tables, engine
 
@@ -75,3 +78,76 @@ async def test_protected_route_invalid_token(async_client):
     headers = {"Authorization": "Bearer invalid_token_here"}
     protected_resp = await async_client.get("/protected", headers=headers)
     assert protected_resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_verify_permission_with_opa_token(async_client, monkeypatch):
+    monkeypatch.setenv("OPA_TOKEN", "my-secret-opa-token")
+
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = lambda: {"result": True}
+    mock_client.post.return_value = mock_response
+
+    monkeypatch.setattr(main_module, "http_client", mock_client)
+
+    response = await async_client.get("/finance/report123?user_id=finance_user")
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": "report123",
+        "data": "Confidential financial data",
+        "accessed_by": "finance_user",
+    }
+
+    mock_client.post.assert_called_once()
+    _, kwargs = mock_client.post.call_args
+    assert kwargs.get("headers") == {"Authorization": "Bearer my-secret-opa-token"}
+
+@pytest.mark.asyncio
+async def test_verify_permission_without_opa_token(async_client, monkeypatch):
+    monkeypatch.delenv("OPA_TOKEN", raising=False)
+    monkeypatch.delenv("OPA_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("OPA_BEARER_TOKEN", raising=False)
+
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = lambda: {"result": True}
+    mock_client.post.return_value = mock_response
+
+    monkeypatch.setattr(main_module, "http_client", mock_client)
+
+    response = await async_client.get("/finance/report123?user_id=finance_user")
+    assert response.status_code == 200
+
+    mock_client.post.assert_called_once()
+    _, kwargs = mock_client.post.call_args
+    assert kwargs.get("headers") == {}
+
+@pytest.mark.asyncio
+async def test_verify_permission_denied(async_client, monkeypatch):
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = lambda: {"result": False}
+    mock_client.post.return_value = mock_response
+
+    monkeypatch.setattr(main_module, "http_client", mock_client)
+
+    response = await async_client.get("/finance/report123?user_id=marketing_user")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden"
+
+@pytest.mark.asyncio
+async def test_verify_permission_unreachable(async_client, monkeypatch):
+    mock_client = AsyncMock()
+    mock_client.post.side_effect = httpx.RequestError("Connection failed")
+
+    monkeypatch.setattr(main_module, "http_client", mock_client)
+
+    response = await async_client.get("/finance/report123?user_id=finance_user")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Service Unavailable: Authorization service unreachable"
