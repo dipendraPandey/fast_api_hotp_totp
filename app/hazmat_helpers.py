@@ -43,6 +43,7 @@ def verify_totp(totp:TOTP, value:bytes, time_value:int):
 
 class HOTPBuilder:
     def __init__(self, key:bytes, counter:int=0, length:int=6):
+        self.key = key
         self.counter = counter
         self.hotp = get_hotp(key=key, length=length)
         self.key_builder = KeyBuilder()
