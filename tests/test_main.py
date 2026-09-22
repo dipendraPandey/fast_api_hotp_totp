@@ -75,3 +75,17 @@ async def test_protected_route_invalid_token(async_client):
     headers = {"Authorization": "Bearer invalid_token_here"}
     protected_resp = await async_client.get("/protected", headers=headers)
     assert protected_resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_register_duplicate_user(async_client):
+    user_id = "duplicate_user"
+    password = "securepassword"
+
+    # Register first time
+    first_resp = await async_client.post("/register", json={"user_id": user_id, "password": password})
+    assert first_resp.status_code == 200
+
+    # Register second time with identical payload
+    second_resp = await async_client.post("/register", json={"user_id": user_id, "password": password})
+    assert second_resp.status_code == 400
+    assert second_resp.json()["detail"] == "User already registered"
