@@ -37,10 +37,6 @@ def get_totp(key:bytes, length:int=6, time_step:int=30)->TOTP:
         raise ValueError("Invalid Algorithm.")
 
 
-
-def verify_totp(totp:TOTP, value:bytes, time_value:int):
-    return totp.verify(value, time_value)
-
 class HOTPBuilder:
     def __init__(self, key:bytes, counter:int=0, length:int=6):
         self.counter = counter
