@@ -1,8 +1,12 @@
+import base64
+from datetime import timedelta
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from jose import jwt
 from sqlmodel import SQLModel
 from app.main import app
+from app.jwt_helpers import create_access_token, create_refresh_token, SECRET_KEY, ALGORITHM
 from app.service_layer.unit_of_work import create_db_and_tables, engine
 
 @pytest_asyncio.fixture(autouse=True)
@@ -75,3 +79,40 @@ async def test_protected_route_invalid_token(async_client):
     headers = {"Authorization": "Bearer invalid_token_here"}
     protected_resp = await async_client.get("/protected", headers=headers)
     assert protected_resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_refresh_token_invalid_or_expired(async_client):
+    # Case 1: Malformed token
+    resp_malformed = await async_client.post("/refresh", json={"refresh_token": "not_a_valid_token"})
+    assert resp_malformed.status_code == 401
+    assert resp_malformed.json()["detail"] == "Invalid or expired refresh token"
+
+    # Case 2: Expired token
+    expired_tok = create_refresh_token({"sub": "user_expired"}, expires_delta=timedelta(seconds=-1))
+    resp_expired = await async_client.post("/refresh", json={"refresh_token": expired_tok})
+    assert resp_expired.status_code == 401
+    assert resp_expired.json()["detail"] == "Invalid or expired refresh token"
+
+    # Case 3: Wrong token type (access token instead of refresh token)
+    access_tok = create_access_token({"sub": "user_wrong_type"})
+    resp_access = await async_client.post("/refresh", json={"refresh_token": access_tok})
+    assert resp_access.status_code == 401
+    assert resp_access.json()["detail"] == "Invalid or expired refresh token"
+
+@pytest.mark.asyncio
+async def test_refresh_token_missing_sub(async_client):
+    payload = {"type": "refresh"}
+    encoded_jwt = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    b64_jwt = base64.b64encode(encoded_jwt.encode('utf-8')).decode('utf-8')
+
+    resp = await async_client.post("/refresh", json={"refresh_token": b64_jwt})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid token"
+
+@pytest.mark.asyncio
+async def test_refresh_token_user_not_found(async_client):
+    refresh_tok = create_refresh_token({"sub": "non_existent_user"})
+
+    resp = await async_client.post("/refresh", json={"refresh_token": refresh_tok})
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "User not found"
