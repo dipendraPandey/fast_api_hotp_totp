@@ -75,3 +75,31 @@ async def test_protected_route_invalid_token(async_client):
     headers = {"Authorization": "Bearer invalid_token_here"}
     protected_resp = await async_client.get("/protected", headers=headers)
     assert protected_resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_generate_totp_success(async_client):
+    user_id = "totp_user"
+    password = "securepassword"
+
+    # Register user
+    reg_resp = await async_client.post("/register", json={"user_id": user_id, "password": password})
+    assert reg_resp.status_code == 200
+
+    # Generate TOTP
+    totp_resp = await async_client.post("/generate/totp", json={"user_id": user_id})
+    assert totp_resp.status_code == 200
+    data = totp_resp.json()
+    assert "otp" in data
+    otp = data["otp"]
+    assert isinstance(otp, str)
+    assert len(otp) == 6
+
+    # Verify TOTP
+    verify_resp = await async_client.post("/verify/totp", json={"user_id": user_id, "otp": otp})
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+
+@pytest.mark.asyncio
+async def test_generate_totp_user_not_found(async_client):
+    totp_resp = await async_client.post("/generate/totp", json={"user_id": "non_existent_totp_user"})
+    assert totp_resp.status_code == 404
