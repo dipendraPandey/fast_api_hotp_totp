@@ -81,8 +81,7 @@ class SqlModelUnitOfWork(AbstractUnitOfWork):
         self.session.close()
 
     def _commit(self):
-        for user in self.users.seen:
-            self.users.add(user)
+        self.users.add_all(self.users.seen)
         self.session.commit()
 
     def rollback(self):

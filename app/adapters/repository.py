@@ -1,6 +1,6 @@
 """UserRepository implementation following Repository Pattern."""
 import abc
-from typing import Dict, Optional, Set
+from typing import Dict, Iterable, Optional, Set
 from sqlmodel import SQLModel, Field, Session, select
 from app.domain.models import User
 
@@ -22,6 +22,11 @@ class AbstractUserRepository(abc.ABC):
         self._add(user)
         self.seen.add(user)
 
+    def add_all(self, users: Iterable[User]) -> None:
+        self._add_all(users)
+        for user in users:
+            self.seen.add(user)
+
     def get(self, user_id: str) -> Optional[User]:
         user = self._get(user_id)
         if user:
@@ -31,6 +36,10 @@ class AbstractUserRepository(abc.ABC):
     @abc.abstractmethod
     def _add(self, user: User) -> None:
         raise NotImplementedError
+
+    def _add_all(self, users: Iterable[User]) -> None:
+        for user in users:
+            self._add(user)
 
     @abc.abstractmethod
     def _get(self, user_id: str) -> Optional[User]:
@@ -43,6 +52,10 @@ class InMemoryUserRepository(AbstractUserRepository):
 
     def _add(self, user: User) -> None:
         self._users[user.user_id] = user
+
+    def _add_all(self, users: Iterable[User]) -> None:
+        for user in users:
+            self._users[user.user_id] = user
 
     def _get(self, user_id: str) -> Optional[User]:
         return self._users.get(user_id)
@@ -68,6 +81,37 @@ class SqlModelUserRepository(AbstractUserRepository):
             db_user.secret_key = user.secret_key
             db_user.counter = user.counter
             self.session.add(db_user)
+
+    def _add_all(self, users: Iterable[User]) -> None:
+        user_list = list(users)
+        if not user_list:
+            return
+
+        chunk_size = 500
+        for i in range(0, len(user_list), chunk_size):
+            chunk = user_list[i : i + chunk_size]
+            user_ids = [u.user_id for u in chunk]
+            statement = select(UserModel).where(UserModel.user_id.in_(user_ids))
+            existing_map = {
+                db_u.user_id: db_u
+                for db_u in self.session.exec(statement).all()
+            }
+
+            for user in chunk:
+                db_user = existing_map.get(user.user_id)
+                if not db_user:
+                    db_user = UserModel(
+                        user_id=user.user_id,
+                        password_hash=user.password_hash,
+                        secret_key=user.secret_key,
+                        counter=user.counter,
+                    )
+                    self.session.add(db_user)
+                else:
+                    db_user.password_hash = user.password_hash
+                    db_user.secret_key = user.secret_key
+                    db_user.counter = user.counter
+                    self.session.add(db_user)
 
     def _get(self, user_id: str) -> Optional[User]:
         db_user = self.session.get(UserModel, user_id)
