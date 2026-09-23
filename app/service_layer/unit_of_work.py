@@ -34,8 +34,9 @@ class AbstractUnitOfWork(abc.ABC):
 
     def collect_new_events(self) -> Generator[Event, None, None]:
         for user in self.users.seen:
-            while user.events:
-                yield user.events.pop(0)
+            events = list(user.events)
+            user.events.clear()
+            yield from events
 
     @abc.abstractmethod
     def _commit(self):
