@@ -15,6 +15,26 @@ def test_user_aggregate_events():
     assert isinstance(user.events[1], events.TOTPGenerated)
     assert user.verify_totp(totp) is True
 
+
+def test_user_generate_and_verify_hotp():
+    user = User.register("alice", "password123")
+    assert user.counter == 0
+
+    hotp = user.generate_hotp()
+    assert isinstance(hotp, str)
+    assert len(hotp) == 7
+    assert user.counter > 0
+    assert len(user.events) == 2
+    assert isinstance(user.events[1], events.HOTPGenerated)
+    assert user.events[1].user_id == "alice"
+    assert user.events[1].counter == user.counter
+
+    assert user.verify_hotp(hotp) is True
+    assert len(user.events) == 3
+    assert isinstance(user.events[2], events.HOTPVerified)
+    assert user.events[2].user_id == "alice"
+    assert user.events[2].is_valid is True
+
 def test_messagebus_command_and_event_handling():
     uow = InMemoryUnitOfWork(db={})
     handled_events = []
