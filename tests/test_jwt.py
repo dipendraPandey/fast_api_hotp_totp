@@ -74,6 +74,16 @@ def test_verify_jwt_token_invalid_signature():
     with pytest.raises(JWTError):
         verify_jwt_token(b64_jwt)
 
+def test_missing_jwt_secret_key(monkeypatch):
+    import importlib
+    import app.jwt_helpers
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="JWT_SECRET_KEY environment variable is not set"):
+        importlib.reload(app.jwt_helpers)
+    # Reload again with key restored so subsequent tests/imports aren't affected
+    monkeypatch.setenv("JWT_SECRET_KEY", "test_jwt_secret_key_12345")
+    importlib.reload(app.jwt_helpers)
+
 # Hypothesis tests for property-based testing
 @given(st.text(min_size=1, max_size=50))
 def test_hypothesis_encode_decode(sub):
