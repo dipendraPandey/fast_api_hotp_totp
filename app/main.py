@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Dict
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import httpx
 from jose import JWTError
@@ -89,7 +90,7 @@ async def register_user(
     """Register a new user via RegisterUserCommand."""
     cmd = commands.RegisterUserCommand(user_id=user.user_id, password=user.password)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return result
     except handlers.UserAlreadyExistsException as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -101,7 +102,7 @@ async def login_user(
     """Login user via LoginUserCommand."""
     cmd = commands.LoginUserCommand(user_id=user.user_id, password=user.password)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return TokenResponse(**result)
     except handlers.InvalidCredentialsException as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -113,7 +114,7 @@ async def refresh_token(
     """Refresh JWT token via RefreshTokenCommand."""
     cmd = commands.RefreshTokenCommand(refresh_token=token_data.refresh_token)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return TokenResponse(**result)
     except handlers.InvalidTokenException as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -132,7 +133,7 @@ async def generate_totp(
     """Generate TOTP via GenerateTOTPCommand."""
     cmd = commands.GenerateTOTPCommand(user_id=user.user_id)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return OTPResponse(**result)
     except handlers.UserNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -144,7 +145,7 @@ async def generate_hotp(
     """Generate HOTP via GenerateHOTPCommand."""
     cmd = commands.GenerateHOTPCommand(user_id=user.user_id)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return OTPResponse(**result)
     except handlers.UserNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -156,7 +157,7 @@ async def verify_totp(
     """Verify TOTP via VerifyTOTPCommand."""
     cmd = commands.VerifyTOTPCommand(user_id=verification.user_id, otp=verification.otp)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return VerificationResponse(**result)
     except handlers.UserNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -168,7 +169,7 @@ async def verify_hotp(
     """Verify HOTP via VerifyHOTPCommand."""
     cmd = commands.VerifyHOTPCommand(user_id=verification.user_id, otp=verification.otp)
     try:
-        result = bus.handle(cmd)
+        result = await run_in_threadpool(bus.handle, cmd)
         return VerificationResponse(**result)
     except handlers.UserNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
